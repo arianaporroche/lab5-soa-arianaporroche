@@ -18,6 +18,7 @@ import org.springframework.integration.dsl.integrationFlow
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import org.springframework.util.ErrorHandler
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
@@ -44,11 +45,23 @@ class IntegrationApplication(
     fun integerSource(): AtomicInteger = AtomicInteger()
 
     /**
-     * Defines a publish-subscribe channel for even numbers.
+     * Defines a publish-subscribe channel for odd numbers.
      * Multiple subscribers can receive messages from this channel.
      */
     @Bean
     fun oddChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
+
+    /**
+     * Defines a publish-subscribe channel for failed messages.
+     */
+    @Bean
+    fun deadLetterChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
+
+    @Bean
+    fun customErrorHandler(): ErrorHandler =
+        ErrorHandler { e ->
+            logger.warn("⚠️ EVEN flow failed softly: {}", e.message)
+        }
 
     /**
      * Main integration flow that polls the integer source and routes messages.
@@ -86,10 +99,18 @@ class IntegrationApplication(
     @Bean
     fun evenFlow(): IntegrationFlow =
         integrationFlow("evenChannel") {
+            enrichHeaders {
+                header("errorChannel", "deadLetterChannel")
+            }
+
             transform { obj: Int ->
+                if (obj != 0 && obj % 7 == 0) {
+                    throw RuntimeException("❌ Simulated failure in EVEN flow with $obj")
+                }
                 logger.info("  ⚙️  Even Transformer: {} → 'Number {}'", obj, obj)
                 "Number $obj"
             }
+
             handle { p ->
                 logger.info("  ✅ Even Handler: Processed [{}]", p.payload)
             }
@@ -125,6 +146,23 @@ class IntegrationApplication(
         integrationFlow("discardChannel") {
             handle { p ->
                 logger.info("  🗑️  Discard Handler: [{}]", p.payload)
+            }
+        }
+
+    /**
+     * Integration flow for handling failed messages.
+     */
+    @Bean
+    fun deadLetterFlow(): IntegrationFlow =
+        integrationFlow("deadLetterChannel") {
+            handle { message ->
+                val payload = message.payload
+                val causeMessage =
+                    when (payload) {
+                        is Throwable -> payload.cause?.message ?: payload.message
+                        else -> payload.toString()
+                    }
+                logger.error("💀 Dead Letter received: {}", causeMessage)
             }
         }
 
