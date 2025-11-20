@@ -6,6 +6,8 @@
 
 Describe what the starter code does and what problems you noticed.
 
+![After Diagram](diagrams/after.png)
+
 ---
 
 ## 2. What Was Wrong
