@@ -19,6 +19,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.util.ErrorHandler
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
@@ -102,6 +103,9 @@ class IntegrationApplication(
             wireTap("wireTapLoggingFlow.input")
 
             enrichHeaders {
+                header("processedAt", System.currentTimeMillis())
+                header("messageId", UUID.randomUUID().toString())
+                header("sourceFlow", "evenFlow")
                 header("errorChannel", "deadLetterChannel")
             }
 
@@ -114,7 +118,7 @@ class IntegrationApplication(
             }
 
             handle { p ->
-                logger.info("  ✅ Even Handler: Processed [{}]", p.payload)
+                logger.info("  ✅ Even Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
             }
         }
 
@@ -128,6 +132,13 @@ class IntegrationApplication(
         integrationFlow("oddChannel") {
             wireTap("wireTapLoggingFlow.input")
 
+            enrichHeaders {
+                header("processedAt", System.currentTimeMillis())
+                header("messageId", UUID.randomUUID().toString())
+                header("sourceFlow", "evenFlow")
+                header("errorChannel", "deadLetterChannel")
+            }
+
             filter({ p: Int ->
                 val passes = p % 2 != 0
                 logger.info("  🔍 Odd Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
@@ -140,7 +151,7 @@ class IntegrationApplication(
             }
 
             handle { p ->
-                //     logger.info("  ✅ Odd Handler: Processed [{}]", p.payload)
+                logger.info("  ✅ Odd Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
             }
         }
 
@@ -168,7 +179,12 @@ class IntegrationApplication(
                         is Throwable -> payload.cause?.message ?: payload.message
                         else -> payload.toString()
                     }
-                logger.error("💀 Dead Letter received: {}", causeMessage)
+                logger.error(
+                    "💀 Dead Letter received: Cause=[{}], Payload=[{}], Headers=[{}]",
+                    causeMessage,
+                    payload,
+                    message.headers,
+                )
             }
         }
 
