@@ -69,13 +69,9 @@ class IntegrationApplication(
     @Bean
     fun myFlow(integerSource: AtomicInteger): IntegrationFlow =
         integrationFlow("numberInputChannel") {
-            transform { num: Int ->
-                logger.info("📥 Source generated number: {}", num)
-                num
-            }
             route { p: Int ->
                 val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
-                logger.info("🔀 Router: {} → {}", p, channel)
+                logger.info("Router: {} -> {}", p, channel)
                 channel
             }
         }
@@ -93,12 +89,12 @@ class IntegrationApplication(
             }, { discardChannel("discardChannel") })
 
             transform { obj: Int ->
-                logger.info("  ⚙️  Even Transformer: {} → 'Number {}'", obj, obj)
+                logger.info("   Even Transformer: {} -> 'Number {}'", obj, obj)
                 "Number $obj"
             }
 
             handle { p ->
-                logger.info("  ✅ Even Handler: Processed [{}]", p.payload)
+                logger.info("  Even Handler: Processed [{}]", p.payload)
             }
         }
 
@@ -112,17 +108,17 @@ class IntegrationApplication(
         integrationFlow("oddChannel") {
             filter({ p: Int ->
                 val passes = p > 0
-                logger.info("  🔍 Odd Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
+                logger.info("  Odd Filter: checking {} -> {}", p, if (passes) "PASS" else "REJECT")
                 passes
             }, { discardChannel("discardChannel") })
 
             transform { obj: Int ->
-                logger.info("  ⚙️  Odd Transformer: {} → 'Number {}'", obj, obj)
+                logger.info("   Odd Transformer: {} -> 'Number {}'", obj, obj)
                 "Number $obj"
             }
 
             handle { p ->
-                logger.info("  ✅ Odd Handler: Processed [{}]", p.payload)
+                // logger.info("  Odd Handler: Processed [{}]", p.payload)
             }
         }
 
@@ -133,7 +129,7 @@ class IntegrationApplication(
     fun discarded(): IntegrationFlow =
         integrationFlow("discardChannel") {
             handle { p ->
-                logger.info("  🗑️  Discard Handler: [{}]", p.payload)
+                logger.info("  Discard Handler: [{}]", p.payload)
             }
         }
 
@@ -143,6 +139,7 @@ class IntegrationApplication(
     @Scheduled(fixedRate = 1000)
     fun sendNegativeNumber() {
         val number = -Random.nextInt(100)
+        logger.info("Gateway injecting: {}", number)
         sendNumber.sendNumber(number)
     }
 
@@ -152,6 +149,7 @@ class IntegrationApplication(
     @Scheduled(fixedRate = 100)
     fun sendPositiveNumber() {
         val number = positiveCounter.getAndIncrement()
+        logger.info("Source generated number: {}", number)
         sendNumber.sendNumber(number)
     }
 }
@@ -164,12 +162,7 @@ class IntegrationApplication(
 class SomeService {
     @ServiceActivator(inputChannel = "oddChannel")
     fun handleOdd(p: Any) {
-        logger.info("  🔧 Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
-    }
-
-    @ServiceActivator(inputChannel = "evenChannel")
-    fun handleEven(p: Any) {
-        logger.info("  🔧 Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
+        logger.info("  Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
     }
 }
 
