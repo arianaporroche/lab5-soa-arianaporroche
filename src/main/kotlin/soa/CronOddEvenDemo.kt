@@ -99,12 +99,14 @@ class IntegrationApplication(
     @Bean
     fun evenFlow(): IntegrationFlow =
         integrationFlow("evenChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             enrichHeaders {
                 header("errorChannel", "deadLetterChannel")
             }
 
             transform { obj: Int ->
-                if (obj != 0 && obj % 7 == 0) {
+                if (obj != 0 && obj % 8 == 0) {
                     throw RuntimeException("❌ Simulated failure in EVEN flow with $obj")
                 }
                 logger.info("  ⚙️  Even Transformer: {} → 'Number {}'", obj, obj)
@@ -124,15 +126,19 @@ class IntegrationApplication(
     @Bean
     fun oddFlow(): IntegrationFlow =
         integrationFlow("oddChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             filter({ p: Int ->
                 val passes = p % 2 != 0
                 logger.info("  🔍 Odd Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
                 passes
             }, { discardChannel("discardChannel") })
+
             transform { obj: Int ->
                 logger.info("  ⚙️  Odd Transformer: {} → 'Number {}'", obj, obj)
                 "Number $obj"
             }
+
             handle { p ->
                 //     logger.info("  ✅ Odd Handler: Processed [{}]", p.payload)
             }
@@ -163,6 +169,14 @@ class IntegrationApplication(
                         else -> payload.toString()
                     }
                 logger.error("💀 Dead Letter received: {}", causeMessage)
+            }
+        }
+
+    @Bean
+    fun wireTapLoggingFlow(): IntegrationFlow =
+        integrationFlow("wireTapLoggingFlow.input") {
+            handle { message ->
+                logger.info("👀 Wire Tap intercepted message: {}", message.payload)
             }
         }
 
