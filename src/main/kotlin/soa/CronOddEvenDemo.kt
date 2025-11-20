@@ -12,7 +12,6 @@ import org.springframework.integration.annotation.ServiceActivator
 import org.springframework.integration.config.EnableIntegration
 import org.springframework.integration.dsl.IntegrationFlow
 import org.springframework.integration.dsl.MessageChannels
-import org.springframework.integration.dsl.Pollers
 import org.springframework.integration.dsl.PublishSubscribeChannelSpec
 import org.springframework.integration.dsl.integrationFlow
 import org.springframework.scheduling.annotation.EnableScheduling
@@ -40,6 +39,12 @@ class IntegrationApplication(
     private val sendNumber: SendNumber,
 ) {
     /**
+     * Channel that acts as the main entry point for all numbers (positive or negative).
+     * Messages sent here are routed to either the evenChannel or oddChannel based on parity.
+     */
+    private val positiveCounter = AtomicInteger(0)
+
+    /**
      * Creates an atomic integer source that generates sequential numbers.
      */
     @Bean
@@ -58,6 +63,12 @@ class IntegrationApplication(
     @Bean
     fun deadLetterChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
 
+    /**
+     * Defines a channel for initial numers.
+     */
+    @Bean
+    fun numberInputChannel() = MessageChannels.direct()
+
     @Bean
     fun customErrorHandler(): ErrorHandler =
         ErrorHandler { e ->
@@ -70,24 +81,16 @@ class IntegrationApplication(
      */
     @Bean
     fun myFlow(integerSource: AtomicInteger): IntegrationFlow =
-        integrationFlow(
-            source = { integerSource.getAndIncrement() },
-            options = { poller(Pollers.fixedRate(100)) },
-        ) {
-            transform { num: Int ->
-                logger.info("📥 Source generated number: {}", num)
-                num
-            }
+        integrationFlow("numberInputChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             route { p: Int ->
                 val channel =
-                    if (p < 0) {
-                        "discardChannel"
-                    } else if (p % 2 == 0) {
+                    if (p % 2 == 0) {
                         "evenChannel"
                     } else {
                         "oddChannel"
                     }
-
                 logger.info("🔀 Router: {} → {}", p, channel)
                 channel
             }
@@ -108,6 +111,12 @@ class IntegrationApplication(
                 header("sourceFlow", "evenFlow")
                 header("errorChannel", "deadLetterChannel")
             }
+
+            filter({ p: Int ->
+                val passes = p >= 0
+                logger.info("  🔍 Even Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
+                passes
+            }, { discardChannel("discardChannel") })
 
             transform { obj: Int ->
                 if (obj != 0 && obj % 8 == 0) {
@@ -140,7 +149,7 @@ class IntegrationApplication(
             }
 
             filter({ p: Int ->
-                val passes = p % 2 != 0
+                val passes = p > 0
                 logger.info("  🔍 Odd Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
                 passes
             }, { discardChannel("discardChannel") })
@@ -200,9 +209,19 @@ class IntegrationApplication(
      * Scheduled task that periodically sends negative random numbers via the gateway.
      */
     @Scheduled(fixedRate = 1000)
-    fun sendNumber() {
+    fun sendNegativeNumber() {
         val number = -Random.nextInt(100)
         logger.info("🚀 Gateway injecting: {}", number)
+        sendNumber.sendNumber(number)
+    }
+
+    /**
+     * Scheduled task that periodically sends positive random numbers via the gateway.
+     */
+    @Scheduled(fixedRate = 100)
+    fun sendPositiveNumber() {
+        val number = positiveCounter.getAndIncrement()
+        logger.info("📥 Source generated number: {}", number)
         sendNumber.sendNumber(number)
     }
 }
@@ -214,7 +233,12 @@ class IntegrationApplication(
 @Component
 class SomeService {
     @ServiceActivator(inputChannel = "oddChannel")
-    fun handle(p: Any) {
+    fun handleOdd(p: Any) {
+        logger.info("  🔧 Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
+    }
+
+    @ServiceActivator(inputChannel = "evenChannel")
+    fun handleEven(p: Any) {
         logger.info("  🔧 Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
     }
 }
@@ -226,7 +250,7 @@ class SomeService {
  */
 @MessagingGateway
 interface SendNumber {
-    @Gateway(requestChannel = "oddChannel")
+    @Gateway(requestChannel = "numberInputChannel")
     fun sendNumber(number: Int)
 }
 

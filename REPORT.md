@@ -4,7 +4,12 @@
 
 ![Before Diagram](diagrams/before.png)
 
-Describe what the starter code does and what problems you noticed.
+The initial code had several problems:
+- The `evenChannel` was defined as publish/subscribe, but the channel that actually requires publish/subscribe semantics is `oddChannel`.
+- The `discarded` flow was isolated and not connected to any channel, so discarded messages would never reach it.
+- The filter in `oddFlow` was not discarding any messages.
+- The routing in the main flow (`myFlow`) was unclear and did not properly direct messages to the intended channels.
+
 
 ![After Diagram](diagrams/after.png)
 
