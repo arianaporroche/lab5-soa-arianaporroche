@@ -17,8 +17,6 @@ import org.springframework.integration.dsl.integrationFlow
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
-import org.springframework.util.ErrorHandler
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
@@ -58,39 +56,25 @@ class IntegrationApplication(
     fun oddChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
 
     /**
-     * Defines a publish-subscribe channel for failed messages.
-     */
-    @Bean
-    fun deadLetterChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
-
-    /**
      * Defines a channel for initial numers.
      */
     @Bean
     fun numberInputChannel() = MessageChannels.direct()
 
-    @Bean
-    fun customErrorHandler(): ErrorHandler =
-        ErrorHandler { e ->
-            logger.warn("⚠️ EVEN flow failed softly: {}", e.message)
-        }
-
     /**
-     * Main integration flow that polls the integer source and routes messages.
-     * Polls every 100ms and routes based on even/odd logic.
+     * Main integration flow that routes incoming numbers from the numberInputChannel.
+     * Numbers are directed to evenChannel if they are even, or to oddChannel if they are odd.
+     * Acts as the central router for all numbers before further processing.
      */
     @Bean
     fun myFlow(integerSource: AtomicInteger): IntegrationFlow =
         integrationFlow("numberInputChannel") {
-            wireTap("wireTapLoggingFlow.input")
-
+            transform { num: Int ->
+                logger.info("📥 Source generated number: {}", num)
+                num
+            }
             route { p: Int ->
-                val channel =
-                    if (p % 2 == 0) {
-                        "evenChannel"
-                    } else {
-                        "oddChannel"
-                    }
+                val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
                 logger.info("🔀 Router: {} → {}", p, channel)
                 channel
             }
@@ -103,31 +87,18 @@ class IntegrationApplication(
     @Bean
     fun evenFlow(): IntegrationFlow =
         integrationFlow("evenChannel") {
-            wireTap("wireTapLoggingFlow.input")
-
-            enrichHeaders {
-                header("processedAt", System.currentTimeMillis())
-                header("messageId", UUID.randomUUID().toString())
-                header("sourceFlow", "evenFlow")
-                header("errorChannel", "deadLetterChannel")
-            }
-
             filter({ p: Int ->
                 val passes = p >= 0
-                logger.info("  🔍 Even Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
                 passes
             }, { discardChannel("discardChannel") })
 
             transform { obj: Int ->
-                if (obj != 0 && obj % 8 == 0) {
-                    throw RuntimeException("❌ Simulated failure in EVEN flow with $obj")
-                }
                 logger.info("  ⚙️  Even Transformer: {} → 'Number {}'", obj, obj)
                 "Number $obj"
             }
 
             handle { p ->
-                logger.info("  ✅ Even Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
+                logger.info("  ✅ Even Handler: Processed [{}]", p.payload)
             }
         }
 
@@ -139,15 +110,6 @@ class IntegrationApplication(
     @Bean
     fun oddFlow(): IntegrationFlow =
         integrationFlow("oddChannel") {
-            wireTap("wireTapLoggingFlow.input")
-
-            enrichHeaders {
-                header("processedAt", System.currentTimeMillis())
-                header("messageId", UUID.randomUUID().toString())
-                header("sourceFlow", "evenFlow")
-                header("errorChannel", "deadLetterChannel")
-            }
-
             filter({ p: Int ->
                 val passes = p > 0
                 logger.info("  🔍 Odd Filter: checking {} → {}", p, if (passes) "PASS" else "REJECT")
@@ -160,7 +122,7 @@ class IntegrationApplication(
             }
 
             handle { p ->
-                logger.info("  ✅ Odd Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
+                logger.info("  ✅ Odd Handler: Processed [{}]", p.payload)
             }
         }
 
@@ -176,42 +138,11 @@ class IntegrationApplication(
         }
 
     /**
-     * Integration flow for handling failed messages.
-     */
-    @Bean
-    fun deadLetterFlow(): IntegrationFlow =
-        integrationFlow("deadLetterChannel") {
-            handle { message ->
-                val payload = message.payload
-                val causeMessage =
-                    when (payload) {
-                        is Throwable -> payload.cause?.message ?: payload.message
-                        else -> payload.toString()
-                    }
-                logger.error(
-                    "💀 Dead Letter received: Cause=[{}], Payload=[{}], Headers=[{}]",
-                    causeMessage,
-                    payload,
-                    message.headers,
-                )
-            }
-        }
-
-    @Bean
-    fun wireTapLoggingFlow(): IntegrationFlow =
-        integrationFlow("wireTapLoggingFlow.input") {
-            handle { message ->
-                logger.info("👀 Wire Tap intercepted message: {}", message.payload)
-            }
-        }
-
-    /**
      * Scheduled task that periodically sends negative random numbers via the gateway.
      */
     @Scheduled(fixedRate = 1000)
     fun sendNegativeNumber() {
         val number = -Random.nextInt(100)
-        logger.info("🚀 Gateway injecting: {}", number)
         sendNumber.sendNumber(number)
     }
 
@@ -221,7 +152,6 @@ class IntegrationApplication(
     @Scheduled(fixedRate = 100)
     fun sendPositiveNumber() {
         val number = positiveCounter.getAndIncrement()
-        logger.info("📥 Source generated number: {}", number)
         sendNumber.sendNumber(number)
     }
 }
