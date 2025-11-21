@@ -17,6 +17,7 @@ import org.springframework.integration.dsl.integrationFlow
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
@@ -77,6 +78,12 @@ class IntegrationApplication(
     @Bean
     fun evenFlow(): IntegrationFlow =
         integrationFlow("evenChannel") {
+            enrichHeaders {
+                header("processedAt", System.currentTimeMillis())
+                header("messageId", UUID.randomUUID().toString())
+                header("sourceFlow", "evenFlow")
+            }
+
             filter({ p: Int ->
                 val passes = p >= 0
                 passes
@@ -88,7 +95,7 @@ class IntegrationApplication(
             }
 
             handle { p ->
-                logger.info("  Even Handler: Processed [{}]", p.payload)
+                logger.info("  ✅ Even Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
             }
         }
 
@@ -100,6 +107,12 @@ class IntegrationApplication(
     @Bean
     fun oddFlow(): IntegrationFlow =
         integrationFlow("oddChannel") {
+            enrichHeaders {
+                header("processedAt", System.currentTimeMillis())
+                header("messageId", UUID.randomUUID().toString())
+                header("sourceFlow", "evenFlow")
+            }
+
             filter({ p: Int ->
                 val passes = p > 0
                 logger.info("  Odd Filter: checking {} -> {}", p, if (passes) "PASS" else "REJECT")
@@ -112,7 +125,7 @@ class IntegrationApplication(
             }
 
             handle { p ->
-                // logger.info("  Odd Handler: Processed [{}]", p.payload)
+                logger.info("  ✅ Odd Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
             }
         }
 
