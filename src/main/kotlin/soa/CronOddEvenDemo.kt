@@ -53,16 +53,16 @@ class IntegrationApplication(
      * Defines a channel for initial numers.
      */
     @Bean
-    fun numberInputChannel() = MessageChannels.direct()
+    fun numberChannel() = MessageChannels.direct()
 
     /**
-     * Main integration flow that routes incoming numbers from the numberInputChannel.
+     * Main integration flow that routes incoming numbers from the numberChannel.
      * Numbers are directed to evenChannel if they are even, or to oddChannel if they are odd.
      * Acts as the central router for all numbers before further processing.
      */
     @Bean
     fun myFlow(): IntegrationFlow =
-        integrationFlow("numberInputChannel") {
+        integrationFlow("numberChannel") {
             route { p: Int ->
                 val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
                 logger.info("Router: {} -> {}", p, channel)
@@ -167,7 +167,7 @@ class SomeService {
  */
 @MessagingGateway
 interface SendNumber {
-    @Gateway(requestChannel = "numberInputChannel")
+    @Gateway(requestChannel = "numberChannel")
     fun sendNumber(number: Int)
 }
 
