@@ -224,8 +224,8 @@ I used AI tools (ChatGPT) to assist me during the development of the report. The
 
 Implemented the next 3 bonus tasks:
 
-### 1. **Content Enricher Pattern**
+### 1. Content Enricher Pattern
 
-### 3. **Dead Letter Channel**
+### 3. Dead Letter Channel
 
-### 4. **Wire Tap**
+### 4. Wire Tap
