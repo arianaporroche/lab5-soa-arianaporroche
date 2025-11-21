@@ -218,3 +218,14 @@ The most challenging part was identifying how small configuration mistakes broke
 
 I used AI tools (ChatGPT) to assist me during the development of the report. The tool helped me refine explanations, improve the clarity of the text, and better articulate the reasoning behind some of the fixes. However, all the debugging, the understanding of the flows, and the implementation of the corrected code were done by me. I used AI only as a writing assistant to improve the presentation of my findings, not to solve the assignment itself.
 
+---
+
+## Additional Notes
+
+Implemented the next 3 bonus tasks:
+
+### 1. **Content Enricher Pattern**
+
+### 3. **Dead Letter Channel**
+
+### 4. **Wire Tap**
