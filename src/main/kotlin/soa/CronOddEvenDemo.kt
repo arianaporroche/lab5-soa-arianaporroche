@@ -64,6 +64,8 @@ class IntegrationApplication(
     @Bean
     fun myFlow(): IntegrationFlow =
         integrationFlow("numberChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             route { p: Int ->
                 val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
                 logger.info("Router: {} -> {}", p, channel)
@@ -78,6 +80,8 @@ class IntegrationApplication(
     @Bean
     fun evenFlow(): IntegrationFlow =
         integrationFlow("evenChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             enrichHeaders {
                 header("processedAt", System.currentTimeMillis())
                 header("messageId", UUID.randomUUID().toString())
@@ -107,6 +111,8 @@ class IntegrationApplication(
     @Bean
     fun oddFlow(): IntegrationFlow =
         integrationFlow("oddChannel") {
+            wireTap("wireTapLoggingFlow.input")
+
             enrichHeaders {
                 header("processedAt", System.currentTimeMillis())
                 header("messageId", UUID.randomUUID().toString())
@@ -137,6 +143,14 @@ class IntegrationApplication(
         integrationFlow("discardChannel") {
             handle { p ->
                 logger.info("  Discard Handler: [{}]", p.payload)
+            }
+        }
+
+    @Bean
+    fun wireTapLoggingFlow(): IntegrationFlow =
+        integrationFlow("wireTapLoggingFlow.input") {
+            handle { message ->
+                logger.info("👀 Wire Tap intercepted message: {}", message.payload)
             }
         }
 
