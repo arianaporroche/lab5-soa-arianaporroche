@@ -43,12 +43,6 @@ class IntegrationApplication(
     private val positiveCounter = AtomicInteger(0)
 
     /**
-     * Creates an atomic integer source that generates sequential numbers.
-     */
-    @Bean
-    fun integerSource(): AtomicInteger = AtomicInteger()
-
-    /**
      * Defines a publish-subscribe channel for odd numbers.
      * Multiple subscribers can receive messages from this channel.
      */
@@ -67,7 +61,7 @@ class IntegrationApplication(
      * Acts as the central router for all numbers before further processing.
      */
     @Bean
-    fun myFlow(integerSource: AtomicInteger): IntegrationFlow =
+    fun myFlow(): IntegrationFlow =
         integrationFlow("numberInputChannel") {
             route { p: Int ->
                 val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
