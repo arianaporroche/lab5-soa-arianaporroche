@@ -155,7 +155,7 @@ class IntegrationApplication(
 @Component
 class SomeService {
     @ServiceActivator(inputChannel = "oddChannel")
-    fun handleOdd(p: Any) {
+    fun handle(p: Any) {
         logger.info("  Service Activator: Received [{}] (type: {})", p, p.javaClass.simpleName)
     }
 }
