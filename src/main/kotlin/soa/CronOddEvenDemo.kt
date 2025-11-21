@@ -109,12 +109,15 @@ class IntegrationApplication(
             }, { discardChannel("discardChannel") })
 
             transform { obj: Int ->
-                logger.info("   Even Transformer: {} -> 'Number {}'", obj, obj)
+                if (obj != 0 && obj % 8 == 0) {
+                    throw RuntimeException("❌ Simulated failure in EVEN flow with $obj")
+                }
+                logger.info("  ⚙️  Even Transformer: {} → 'Number {}'", obj, obj)
                 "Number $obj"
             }
 
             handle { p ->
-                logger.info("  ✅ Even Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
+                logger.info("  Even Handler: payload=[{}], headers=[{}]", p.payload, p.headers)
             }
         }
 
@@ -173,7 +176,7 @@ class IntegrationApplication(
                         else -> payload.toString()
                     }
                 logger.error(
-                    "💀 Dead Letter received: Cause=[{}], Payload=[{}], Headers=[{}]",
+                    " Dead Letter received: Cause=[{}], Payload=[{}], Headers=[{}]",
                     causeMessage,
                     payload,
                     message.headers,
