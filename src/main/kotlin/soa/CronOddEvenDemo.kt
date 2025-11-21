@@ -17,6 +17,7 @@ import org.springframework.integration.dsl.integrationFlow
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import org.springframework.util.ErrorHandler
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
@@ -55,6 +56,24 @@ class IntegrationApplication(
      */
     @Bean
     fun numberChannel() = MessageChannels.direct()
+
+    /**
+     * Defines a publish-subscribe channel for failed messages.
+     */
+    @Bean
+    fun deadLetterChannel(): PublishSubscribeChannelSpec<*> = MessageChannels.publishSubscribe()
+
+    /**
+     * Routes all incoming numbers from numberChannel to their corresponding flows.
+     * Even numbers are forwarded to evenChannel, while odd numbers are sent to oddChannel.
+     * This flow acts as the entry point of the system, ensuring every number is classified
+     * before being processed by the even or odd flows.
+     */
+    @Bean
+    fun customErrorHandler(): ErrorHandler =
+        ErrorHandler { e ->
+            logger.warn("⚠️ EVEN flow failed softly: {}", e.message)
+        }
 
     /**
      * Main integration flow that routes incoming numbers from the numberChannel.
@@ -137,6 +156,28 @@ class IntegrationApplication(
         integrationFlow("discardChannel") {
             handle { p ->
                 logger.info("  Discard Handler: [{}]", p.payload)
+            }
+        }
+
+    /**
+     * Integration flow for handling failed messages.
+     */
+    @Bean
+    fun deadLetterFlow(): IntegrationFlow =
+        integrationFlow("deadLetterChannel") {
+            handle { message ->
+                val payload = message.payload
+                val causeMessage =
+                    when (payload) {
+                        is Throwable -> payload.cause?.message ?: payload.message
+                        else -> payload.toString()
+                    }
+                logger.error(
+                    "💀 Dead Letter received: Cause=[{}], Payload=[{}], Headers=[{}]",
+                    causeMessage,
+                    payload,
+                    message.headers,
+                )
             }
         }
 
