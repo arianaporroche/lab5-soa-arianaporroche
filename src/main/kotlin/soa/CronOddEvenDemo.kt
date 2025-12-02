@@ -66,6 +66,13 @@ class IntegrationApplication(
         integrationFlow("numberChannel") {
             wireTap("wireTapLoggingFlow.input")
 
+            enrichHeaders {
+                headerFunction<Int>("parity") { msg ->
+                    val payload = msg.payload
+                    if (payload % 2 == 0) "even" else "odd"
+                }
+            }
+
             route { p: Int ->
                 val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
                 logger.info("Router: {} -> {}", p, channel)
