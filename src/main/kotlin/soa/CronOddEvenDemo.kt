@@ -14,6 +14,7 @@ import org.springframework.integration.dsl.IntegrationFlow
 import org.springframework.integration.dsl.MessageChannels
 import org.springframework.integration.dsl.PublishSubscribeChannelSpec
 import org.springframework.integration.dsl.integrationFlow
+import org.springframework.messaging.Message
 import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -73,9 +74,12 @@ class IntegrationApplication(
                 }
             }
 
-            route { p: Int ->
-                val channel = if (p % 2 == 0) "evenChannel" else "oddChannel"
-                logger.info("Router: {} -> {}", p, channel)
+            route<Message<*>> { message ->
+                val parity = message.headers["parity"]
+                logger.info("******* Router parity = {}", parity)
+
+                val channel = if (parity == "even") "evenChannel" else "oddChannel"
+                logger.info("Router: {} -> {}", message.payload, channel)
                 channel
             }
         }
